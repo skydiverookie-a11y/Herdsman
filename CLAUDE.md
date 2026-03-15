@@ -22,17 +22,43 @@ Ollama bietet keine Such-API — Herdsman schliesst diese Luecke mit Registry-Br
 Herdsman/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py            # FastAPI-App, CORS, /health Endpoint
-│   │   ├── models/            # Pydantic Data Models
-│   │   ├── routers/           # API-Routen
-│   │   ├── schemas/           # Request/Response Schemas
-│   │   └── services/          # Business-Logik
-│   └── requirements.txt       # fastapi, uvicorn, httpx, beautifulsoup4, aiosqlite
-├── frontend/                  # Angular-App (noch nicht erstellt)
+│   │   ├── main.py              # FastAPI-App, Lifespan, Router-Registrierung
+│   │   ├── config.py            # Pydantic Settings (ENV-basiert)
+│   │   ├── database.py          # aiosqlite Connection + Schema-Init
+│   │   ├── dependencies.py      # JWT verify_token Dependency
+│   │   ├── models/              # (reserviert)
+│   │   ├── routers/
+│   │   │   ├── auth.py          # POST /api/auth/login
+│   │   │   ├── ollama.py        # /api/models/*, /api/ollama/status
+│   │   │   ├── registry.py      # /api/registry/search, /models/*
+│   │   │   └── settings.py      # /api/settings, /api/settings/password
+│   │   ├── schemas/
+│   │   │   ├── auth.py          # LoginRequest, TokenResponse
+│   │   │   ├── models.py        # LocalModel, RunningModel, PullProgress, etc.
+│   │   │   └── registry.py      # SearchResult, SearchResponse, ModelInfo
+│   │   └── services/
+│   │       ├── auth.py          # Password hashing, JWT creation/decode
+│   │       ├── cache.py         # SQLite-basierter Cache mit TTL
+│   │       ├── ollama.py        # OllamaService (Ollama API Client)
+│   │       ├── pull_queue.py    # Sequenzielle Pull-Queue mit asyncio
+│   │       ├── registry.py      # RegistryService (ollama.com Scraping)
+│   │       ├── settings.py      # SettingsService (DB-persistiert)
+│   │       └── vram.py          # VRAM-Schaetzung + Quantisierungs-Lookup
+│   └── requirements.txt
+├── frontend/                    # Angular 21 App
+│   └── src/app/
+│       ├── core/
+│       │   ├── guards/auth.guard.ts
+│       │   ├── interceptors/auth.interceptor.ts
+│       │   └── services/{api,auth,sse}.service.ts
+│       ├── layout/sidebar.ts
+│       └── pages/{login,dashboard,registry-search,model-details,local-models,settings}/
 ├── docker/
-│   ├── Dockerfile.backend     # Python 3.12-slim, uvicorn
-│   └── docker-compose.yml     # backend + frontend
-└── REQUIREMENTS.md            # Feature-Spezifikation
+│   ├── Dockerfile.backend
+│   ├── Dockerfile.frontend
+│   ├── docker-compose.yml
+│   └── nginx.conf               # API-Proxy + SPA-Fallback
+└── REQUIREMENTS.md
 ```
 
 ## Design
@@ -113,9 +139,9 @@ Herdsman/
 
 ## Aktueller Stand
 
-- **Backend:** Grundgeruest steht (FastAPI-App mit CORS + Health-Endpoint), Module sind leer
-- **Frontend:** Noch nicht erstellt
-- **Docker:** Compose und Backend-Dockerfile vorhanden, Frontend-Dockerfile fehlt
+- **Backend:** Vollstaendig implementiert (Auth, Ollama-Service, Registry-Scraping, Cache, Settings, Pull-Queue)
+- **Frontend:** Angular 21 mit Material Dark Theme, 5 Seiten (Dashboard, Registry, Model-Details, Local Models, Settings)
+- **Docker:** Komplett (Backend + Frontend Dockerfiles, docker-compose mit Volumes + Health-Checks, nginx API-Proxy)
 
 ## Entwicklung
 

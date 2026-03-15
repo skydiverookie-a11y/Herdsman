@@ -1,15 +1,21 @@
+networks:
+  internal:
+    external: true
+
 services:
   backend:
-    build:
-      context: ../backend
-      dockerfile: ../docker/Dockerfile.backend
-    ports:
-      - "8000:8000"
+    build: ./backend
+    container_name: herdsman-backend
+    networks:
+      - default
+      - internal
     environment:
-      - HERDSMAN_OLLAMA_HOST=http://host.docker.internal:11434
+      - HERDSMAN_OLLAMA_HOST=http://ollama:11434
       - HERDSMAN_ADMIN_USER=admin
       - HERDSMAN_ADMIN_PASSWORD=admin
       - HERDSMAN_SECRET_KEY=change-me-in-production
+      - HERDSMAN_DB_PATH=/app/data/herdsman.db
+      - TZ=Europe/Berlin
     volumes:
       - herdsman-data:/app/data
     restart: unless-stopped
@@ -20,17 +26,18 @@ services:
       retries: 3
 
   frontend:
-    build:
-      context: ../frontend
-      dockerfile: ../docker/Dockerfile.frontend
+    build: ./frontend
+    container_name: herdsman-frontend
     ports:
-      - "4200:80"
+      - "127.0.0.1:4200:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    environment:
+      - TZ=Europe/Berlin
 
 volumes:
   herdsman-data:
