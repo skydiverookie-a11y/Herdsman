@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, computed, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -27,7 +27,7 @@ import { ApiService } from '../../core/services/api.service';
   ],
   template: `
     <div class="page-container">
-      <h1>Registry Search</h1>
+      <h1>{{ isDefaultView() ? 'Popular Models' : 'Registry Search' }}</h1>
 
       <!-- Search Bar -->
       <div class="search-bar">
@@ -209,6 +209,8 @@ export class RegistrySearch implements OnInit {
   hasMore = signal(false);
   fromCache = signal(false);
   searched = signal(false);
+  activeQuery = signal('');
+  isDefaultView = computed(() => !this.activeQuery());
 
   constructor(
     private api: ApiService,
@@ -220,8 +222,8 @@ export class RegistrySearch implements OnInit {
     this.route.queryParams.subscribe((params) => {
       if (params['q']) {
         this.query = params['q'];
-        this.search();
       }
+      this.search();
     });
   }
 
@@ -229,6 +231,7 @@ export class RegistrySearch implements OnInit {
     this.page = 1;
     this.loading.set(true);
     this.searched.set(true);
+    this.activeQuery.set(this.query);
 
     this.api.searchRegistry(this.query, this.category, '', this.page).subscribe({
       next: (data) => {
