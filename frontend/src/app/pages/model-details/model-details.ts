@@ -50,12 +50,18 @@ import { SseService } from '../../core/services/sse.service';
             @if (enrichedTags().length === 0) {
               <p class="empty-text">No tags found</p>
             }
-            @for (tag of enrichedTags(); track tag.name) {
+            @for (tag of enrichedTags(); track tag.primaryName) {
               <div class="tag-item" [class.installed]="tag.installed">
                 <div class="tag-info">
                   <div class="tag-name-row">
-                    <span class="tag-name">{{ modelName() }}:{{ tag.name }}</span>
+                    <span class="tag-name">{{ modelName() }}:{{ tag.primaryName }}</span>
                   </div>
+                  @if (tag.aliases.length > 0) {
+                    <span class="tag-aliases">aka: {{ tag.aliases.join(', ') }}</span>
+                  }
+                  @if (tag.hash) {
+                    <span class="tag-hash">{{ tag.hash }}</span>
+                  }
                   @if (tag.size) {
                     <span class="tag-size">{{ tag.size }}</span>
                   }
@@ -67,7 +73,7 @@ import { SseService } from '../../core/services/sse.service';
                 } @else {
                   <button
                     mat-stroked-button
-                    (click)="pullTag(tag.name)"
+                    (click)="pullTag(tag.primaryName)"
                     [disabled]="pulling()"
                   >
                     <mat-icon>download</mat-icon> Pull
@@ -149,6 +155,19 @@ import { SseService } from '../../core/services/sse.service';
       font-family: monospace;
     }
 
+    .tag-aliases {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.4);
+      padding-left: 4px;
+    }
+
+    .tag-hash {
+      font-size: 12px;
+      font-family: monospace;
+      color: rgba(255, 255, 255, 0.3);
+      padding-left: 4px;
+    }
+
     .tag-size {
       font-size: 13px;
       color: rgba(255, 255, 255, 0.4);
@@ -191,20 +210,60 @@ export class ModelDetails implements OnInit {
   pullStatus = signal('');
   pullPercent = signal(0);
 
-  // Computed: match registry tags to local models by digest hash
+  // Computed: group tags by hash, shortest name as primary, rest as aliases
   enrichedTags = computed(() => {
     const locals = this.localModels();
-    const name = this.modelName();
 
     // Build set of short digests from local models (first 12 chars)
     const localDigests = new Set(
       locals.map((m) => m.digest?.replace('sha256:', '').slice(0, 12)).filter(Boolean),
     );
 
-    return this.tags().map((tag) => ({
-      ...tag,
-      installed: tag.hash ? localDigests.has(tag.hash) : false,
-    }));
+    const allTags = this.tags();
+
+    // Group tags by hash (tags without hash stay individual)
+    const hashGroups = new Map<string, any[]>();
+    const noHash: any[] = [];
+
+    for (const tag of allTags) {
+      if (tag.hash) {
+        const group = hashGroups.get(tag.hash) || [];
+        group.push(tag);
+        hashGroups.set(tag.hash, group);
+      } else {
+        noHash.push(tag);
+      }
+    }
+
+    const result: { primaryName: string; aliases: string[]; hash: string; size: string; installed: boolean }[] = [];
+
+    // Process hash groups
+    for (const [hash, group] of hashGroups) {
+      const sorted = [...group].sort((a, b) => a.name.length - b.name.length);
+      const primary = sorted[0];
+      const aliases = sorted.slice(1).map((t) => t.name);
+
+      result.push({
+        primaryName: primary.name,
+        aliases,
+        hash,
+        size: primary.size || '',
+        installed: localDigests.has(hash),
+      });
+    }
+
+    // Process tags without hash
+    for (const tag of noHash) {
+      result.push({
+        primaryName: tag.name,
+        aliases: [],
+        hash: '',
+        size: tag.size || '',
+        installed: false,
+      });
+    }
+
+    return result;
   });
 
   constructor(
