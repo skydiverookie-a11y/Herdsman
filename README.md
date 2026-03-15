@@ -7,8 +7,10 @@ Self-hosted web app for managing [Ollama](https://ollama.com) models. Ollama doe
 - **Registry Browser** — Search and explore the Ollama model library directly from the UI
 - **Local Model Management** — List, inspect, pull, and delete models on your Ollama instance
 - **Pull Queue** — Sequential download queue with real-time progress via SSE (Server-Sent Events)
-- **VRAM Estimation** — Estimate memory requirements based on parameter count and quantization level
-- **Running Models** — Monitor currently loaded models and their VRAM usage
+- **VRAM Estimation** — Estimate memory requirements based on parameter count and quantization level, shown in model lists and tag browser
+- **Running Models** — Monitor currently loaded models and their VRAM usage with auto-refresh polling
+- **VRAM Management** — Free individual models or all at once from GPU memory without deleting them
+- **Test Prompt** — Send prompts to any local model directly from the dashboard
 - **Settings UI** — Configure Ollama host, VRAM budget, cache TTLs, and change admin password
 - **SQLite Cache** — Cached registry data with configurable TTLs (search: 24h, details: 7d)
 - **Single-User Auth** — JWT-based authentication with 24h token expiry
@@ -127,12 +129,24 @@ All endpoints (except login and health) require a valid JWT token in the `Author
 | `GET` | `/api/models/running` | List currently loaded/running models |
 | `GET` | `/api/models/{name}/details` | Show details for a local model |
 | `POST` | `/api/models/pull` | Pull a model (returns SSE stream) |
+| `POST` | `/api/models/unload` | Unload a model from VRAM (keep on disk) |
+| `POST` | `/api/models/generate` | Send a prompt to a model |
 | `GET` | `/api/models/queue` | Current pull queue status |
 | `DELETE` | `/api/models/{name}` | Delete a local model |
 
 **Pull request body:**
 ```json
 { "name": "llama3:8b-q4_K_M" }
+```
+
+**Unload request body:**
+```json
+{ "name": "llama3:8b-q4_K_M" }
+```
+
+**Generate request body:**
+```json
+{ "model": "llama3:8b-q4_K_M", "prompt": "Hello, how are you?" }
 ```
 
 **SSE progress events:**
