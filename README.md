@@ -30,7 +30,17 @@ Self-hosted web app for managing [Ollama](https://ollama.com) models. Ollama doe
 
 ## Screenshots
 
-> *Coming soon*
+### Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Registry Search
+![Registry Search](docs/screenshots/registry_search.png)
+
+### Model Tags
+![Model Tags](docs/screenshots/registry_tags.png)
+
+### Local Models
+![Local Models](docs/screenshots/local_models.png)
 
 ## Quick Start (Docker)
 
