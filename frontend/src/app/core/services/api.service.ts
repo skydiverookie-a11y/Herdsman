@@ -36,6 +36,10 @@ export class ApiService {
     return this.http.post<{ response: string }>('/api/models/generate', { model, prompt });
   }
 
+  cancelPull(name: string): Observable<any> {
+    return this.http.post('/api/models/pull/cancel', { name });
+  }
+
   // Pull Queue
   getPullQueue(): Observable<{ jobs: any[] }> {
     return this.http.get<{ jobs: any[] }>('/api/models/queue');
@@ -73,10 +77,23 @@ export class ApiService {
     return this.http.put('/api/settings', data);
   }
 
+  clearCache(): Observable<any> {
+    return this.http.delete('/api/settings/cache');
+  }
+
   changePassword(currentPassword: string, newPassword: string): Observable<any> {
     return this.http.put('/api/settings/password', {
       current_password: currentPassword,
       new_password: newPassword,
     });
+  }
+
+  // Database Viewer
+  getDatabase(): Observable<any> {
+    return this.http.get('/api/settings/database');
+  }
+
+  deleteDatabaseRow(table: string, key: string): Observable<any> {
+    return this.http.delete(`/api/settings/database/${table}/${encodeURIComponent(key)}`);
   }
 }

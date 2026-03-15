@@ -1,14 +1,16 @@
-import { Component, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ApiService } from '../core/services/api.service';
 import { AuthService } from '../core/services/auth.service';
+import { PullService } from '../core/services/pull.service';
 import { interval, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-sidebar',
-  imports: [RouterLink, RouterLinkActive, MatIconModule, MatTooltipModule],
+  imports: [RouterLink, RouterLinkActive, MatIconModule, MatTooltipModule, MatProgressSpinnerModule],
   template: `
     <nav class="sidebar">
       <div class="sidebar-top">
@@ -52,6 +54,23 @@ import { interval, Subscription } from 'rxjs';
       </div>
 
       <div class="sidebar-bottom">
+        @if (pullService.hasActiveJob()) {
+          <div
+            class="pull-indicator"
+            [matTooltip]="pullTooltip()"
+            matTooltipPosition="right"
+            (click)="cancelActivePull()"
+          >
+            <mat-progress-spinner
+              mode="determinate"
+              [value]="pullService.activeJob()?.percent ?? 0"
+              diameter="36"
+              strokeWidth="3"
+            ></mat-progress-spinner>
+            <mat-icon class="pull-icon">downloading</mat-icon>
+          </div>
+        }
+
         <div
           class="status-dot"
           [class.connected]="ollamaConnected()"
@@ -135,6 +154,27 @@ import { interval, Subscription } from 'rxjs';
       }
     }
 
+    .pull-indicator {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .pull-indicator mat-progress-spinner {
+      position: absolute;
+    }
+
+    .pull-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--mat-sys-primary);
+    }
+
     .status-dot {
       width: 10px;
       height: 10px;
@@ -153,18 +193,34 @@ export class Sidebar implements OnInit, OnDestroy {
   ollamaConnected = signal(false);
   private sub?: Subscription;
 
+  pullTooltip = computed(() => {
+    const job = this.pullService.activeJob();
+    if (!job) return '';
+    const pct = job.percent.toFixed(1);
+    return `Pulling ${job.name} — ${pct}% (click to cancel)`;
+  });
+
   constructor(
     private api: ApiService,
     public auth: AuthService,
+    public pullService: PullService,
   ) {}
 
   ngOnInit() {
     this.checkStatus();
     this.sub = interval(30000).subscribe(() => this.checkStatus());
+    this.pullService.reconnect();
   }
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
+  }
+
+  cancelActivePull() {
+    const job = this.pullService.activeJob();
+    if (job) {
+      this.pullService.cancel(job.name);
+    }
   }
 
   private checkStatus() {

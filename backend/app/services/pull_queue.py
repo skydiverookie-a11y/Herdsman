@@ -13,6 +13,7 @@ class PullStatus(str, Enum):
     PULLING = "pulling"
     DONE = "done"
     ERROR = "error"
+    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -30,6 +31,7 @@ class PullQueue:
         self._jobs: dict[str, PullJob] = {}
         self._worker_task: asyncio.Task | None = None
         self._subscribers: dict[str, list[asyncio.Queue]] = {}
+        self._cancelled: set[str] = set()
 
     def start(self):
         if self._worker_task is None:
@@ -73,6 +75,23 @@ class PullQueue:
                 s for s in self._subscribers[name] if s is not q
             ]
 
+    async def cancel(self, name: str) -> bool:
+        """Cancel a queued or pulling job."""
+        job = self._jobs.get(name)
+        if not job:
+            return False
+        if job.status == PullStatus.QUEUED:
+            job.status = PullStatus.CANCELLED
+            await self._notify(
+                name, {"status": "cancelled", "name": name}
+            )
+            await self._record_history(name, "cancelled")
+            return True
+        if job.status == PullStatus.PULLING:
+            self._cancelled.add(name)
+            return True
+        return False
+
     async def _notify(self, name: str, data: dict):
         for q in self._subscribers.get(name, []):
             await q.put(data)
@@ -80,20 +99,39 @@ class PullQueue:
     async def _worker(self):
         while True:
             job = await self._queue.get()
+
+            # Skip jobs cancelled while queued
+            if job.status == PullStatus.CANCELLED:
+                self._queue.task_done()
+                continue
+
             job.status = PullStatus.PULLING
             await self._notify(job.name, {"status": "pulling", "name": job.name})
 
             try:
+                cancelled = False
                 async for progress in ollama_service.pull_model(job.name):
+                    if job.name in self._cancelled:
+                        cancelled = True
+                        break
                     job.progress = progress
                     await self._notify(job.name, progress)
 
-                job.status = PullStatus.DONE
-                await self._notify(
-                    job.name, {"status": "success", "name": job.name}
-                )
-                await self._record_history(job.name, "success")
+                if cancelled:
+                    self._cancelled.discard(job.name)
+                    job.status = PullStatus.CANCELLED
+                    await self._notify(
+                        job.name, {"status": "cancelled", "name": job.name}
+                    )
+                    await self._record_history(job.name, "cancelled")
+                else:
+                    job.status = PullStatus.DONE
+                    await self._notify(
+                        job.name, {"status": "success", "name": job.name}
+                    )
+                    await self._record_history(job.name, "success")
             except Exception as e:
+                self._cancelled.discard(job.name)
                 job.status = PullStatus.ERROR
                 job.error = str(e)
                 await self._notify(

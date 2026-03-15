@@ -11,6 +11,13 @@ from app.services.cache import cache_service
 BASE_URL = "https://ollama.com"
 
 
+def _model_url(name: str) -> str:
+    """Build ollama.com URL: /library/name for official, /namespace/model for namespaced."""
+    if "/" in name:
+        return f"{BASE_URL}/{name}"
+    return f"{BASE_URL}/library/{name}"
+
+
 class RegistryService:
     def __init__(self):
         self._last_request = 0.0
@@ -143,7 +150,7 @@ class RegistryService:
             cached["from_cache"] = True
             return cached
 
-        url = f"{BASE_URL}/library/{name}"
+        url = _model_url(name)
 
         try:
             html = await self._fetch(url)
@@ -182,7 +189,7 @@ class RegistryService:
         if cached is not None:
             return cached
 
-        url = f"{BASE_URL}/library/{name}/tags"
+        url = f"{_model_url(name)}/tags"
 
         try:
             html = await self._fetch(url)
@@ -206,7 +213,7 @@ class RegistryService:
         containers = soup.select("div.group.px-4.py-3")
 
         for container in containers:
-            link = container.select_one("a[href*='/library/'][href*=':']")
+            link = container.select_one("a[href*=':']")
             if not link:
                 continue
 

@@ -70,12 +70,23 @@ async def pull_model(request: dict, _: str = Depends(verify_token)):
             while True:
                 data = await sub.get()
                 yield f"data: {json.dumps(data)}\n\n"
-                if data.get("status") in ("success", "error"):
+                if data.get("status") in ("success", "error", "cancelled"):
                     break
         finally:
             pull_queue.unsubscribe(name, sub)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/models/pull/cancel")
+async def cancel_pull(request: dict, _: str = Depends(verify_token)):
+    name = request.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Model name required")
+    cancelled = await pull_queue.cancel(name)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="No active pull for this model")
+    return {"status": "cancelled"}
 
 
 @router.get("/models/queue")

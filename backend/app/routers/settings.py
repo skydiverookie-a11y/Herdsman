@@ -1,10 +1,14 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.config import settings as app_settings
+from app.database import get_db
 from app.dependencies import verify_token
 from app.services.auth import verify_password, hash_password, set_hashed_password
 from app.services.ollama import ollama_service
+from app.services.cache import cache_service
 from app.services.settings import settings_service
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -60,6 +64,12 @@ async def update_settings(
     return {"status": "updated"}
 
 
+@router.delete("/cache")
+async def clear_cache(_: str = Depends(verify_token)):
+    await cache_service.clear_all()
+    return {"status": "cache_cleared"}
+
+
 @router.put("/password")
 async def change_password(
     data: PasswordChange, _: str = Depends(verify_token)
@@ -73,3 +83,92 @@ async def change_password(
     set_hashed_password(hashed)
     await settings_service.set("admin_password_hash", hashed)
     return {"status": "password_changed"}
+
+
+def _human_age(created_at: float) -> str:
+    seconds = int(time.time() - created_at)
+    if seconds < 60:
+        return f"{seconds}s ago"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"
+
+
+@router.get("/database")
+async def get_database(_: str = Depends(verify_token)):
+    db = await get_db()
+    tables = []
+
+    # Cache tables (search_cache, model_cache)
+    for table_name in ("search_cache", "model_cache"):
+        cursor = await db.execute(
+            f"SELECT cache_key, data, created_at FROM {table_name} ORDER BY created_at DESC"
+        )
+        raw_rows = await cursor.fetchall()
+        rows = [
+            {
+                "key": r["cache_key"],
+                "age": _human_age(r["created_at"]),
+                "data_size": len(r["data"]),
+            }
+            for r in raw_rows
+        ]
+        tables.append({"name": table_name, "count": len(rows), "rows": rows})
+
+    # Pull history
+    cursor = await db.execute(
+        "SELECT id, model_name, tag, status, pulled_at FROM pull_history ORDER BY pulled_at DESC"
+    )
+    raw_rows = await cursor.fetchall()
+    rows = [
+        {
+            "key": str(r["id"]),
+            "model_name": r["model_name"],
+            "tag": r["tag"],
+            "status": r["status"],
+            "pulled_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["pulled_at"])),
+        }
+        for r in raw_rows
+    ]
+    tables.append({"name": "pull_history", "count": len(rows), "rows": rows})
+
+    # Settings
+    cursor = await db.execute("SELECT key, value FROM settings ORDER BY key")
+    raw_rows = await cursor.fetchall()
+    rows = [
+        {
+            "key": r["key"],
+            "value": "••••••••" if "password" in r["key"].lower() else r["value"],
+        }
+        for r in raw_rows
+    ]
+    tables.append({"name": "settings", "count": len(rows), "rows": rows})
+
+    return {"tables": tables}
+
+
+DELETABLE_TABLES = {"search_cache", "model_cache", "pull_history"}
+
+
+@router.delete("/database/{table}/{key}")
+async def delete_database_row(
+    table: str, key: str, _: str = Depends(verify_token)
+):
+    if table not in DELETABLE_TABLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Table '{table}' is not deletable",
+        )
+
+    db = await get_db()
+    if table == "pull_history":
+        await db.execute("DELETE FROM pull_history WHERE id = ?", (int(key),))
+    else:
+        await db.execute(f"DELETE FROM {table} WHERE cache_key = ?", (key,))
+    await db.commit()
+    return {"status": "deleted"}

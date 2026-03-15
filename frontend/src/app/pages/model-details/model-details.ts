@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, effect } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -8,7 +8,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
-import { SseService } from '../../core/services/sse.service';
+import { PullService } from '../../core/services/pull.service';
 
 @Component({
   selector: 'app-model-details',
@@ -101,9 +101,20 @@ import { SseService } from '../../core/services/sse.service';
             <p class="pull-status">{{ pullStatus() }}</p>
             @if (pullPercent() > 0) {
               <mat-progress-bar mode="determinate" [value]="pullPercent()"></mat-progress-bar>
-              <p class="pull-percent">{{ pullPercent() | number : '1.1-1' }}%</p>
+              <div class="pull-progress-row">
+                <p class="pull-percent">{{ pullPercent() | number : '1.1-1' }}%</p>
+                <button mat-stroked-button class="cancel-btn" (click)="cancelPull()">
+                  <mat-icon>close</mat-icon> Cancel
+                </button>
+              </div>
             } @else {
               <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+              <div class="pull-progress-row">
+                <span></span>
+                <button mat-stroked-button class="cancel-btn" (click)="cancelPull()">
+                  <mat-icon>close</mat-icon> Cancel
+                </button>
+              </div>
             }
           </mat-card-content>
         </mat-card>
@@ -205,10 +216,21 @@ import { SseService } from '../../core/services/sse.service';
       margin-bottom: 8px;
     }
 
-    .pull-percent {
-      text-align: right;
+    .pull-progress-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-top: 4px;
+    }
+
+    .pull-percent {
       color: rgba(255, 255, 255, 0.5);
+      margin: 0;
+    }
+
+    .cancel-btn {
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.4);
     }
 
     @media (max-width: 768px) {
@@ -224,10 +246,30 @@ export class ModelDetails implements OnInit {
   tags = signal<any[]>([]);
   localModels = signal<any[]>([]);
   availableVram = signal<number | null>(null);
-  pulling = signal(false);
-  pullingTag = signal('');
-  pullStatus = signal('');
-  pullPercent = signal(0);
+
+  pulling = computed(() => {
+    const jobs = this.pullService.jobs();
+    return jobs.some((j) => j.name.startsWith(this.modelName() + ':') && (j.status === 'pulling' || j.status === 'queued'));
+  });
+  pullDone = computed(() => {
+    const jobs = this.pullService.jobs();
+    return jobs.some((j) => j.name.startsWith(this.modelName() + ':') && j.status === 'done');
+  });
+  pullingTag = computed(() => {
+    const jobs = this.pullService.jobs();
+    const job = jobs.find((j) => j.name.startsWith(this.modelName() + ':') && (j.status === 'pulling' || j.status === 'queued'));
+    return job?.name ?? '';
+  });
+  pullStatus = computed(() => {
+    const jobs = this.pullService.jobs();
+    const job = jobs.find((j) => j.name.startsWith(this.modelName() + ':'));
+    return job?.statusText ?? '';
+  });
+  pullPercent = computed(() => {
+    const jobs = this.pullService.jobs();
+    const job = jobs.find((j) => j.name.startsWith(this.modelName() + ':'));
+    return job?.percent ?? 0;
+  });
 
   // Computed: group tags by hash, shortest name as primary, rest as aliases
   enrichedTags = computed(() => {
@@ -301,13 +343,24 @@ export class ModelDetails implements OnInit {
   constructor(
     private route: ActivatedRoute,
     private api: ApiService,
-    private sse: SseService,
+    private pullService: PullService,
     private snackbar: MatSnackBar,
-  ) {}
+  ) {
+    // Reload local models and show snackbar when a pull completes successfully
+    effect(() => {
+      const done = this.pullDone();
+      if (done) {
+        this.api.getLocalModels().subscribe({
+          next: (r) => this.localModels.set(r.models),
+        });
+        this.snackbar.open('Pull complete!', 'Close', { duration: 3000 });
+      }
+    });
+  }
 
   ngOnInit() {
     this.route.params.subscribe((params) => {
-      const name = params['name'];
+      const name = decodeURIComponent(params['name']);
       this.modelName.set(name);
       this.loadModel(name);
     });
@@ -340,30 +393,13 @@ export class ModelDetails implements OnInit {
   }
 
   pullTag(tag: string) {
-    const fullName = `${this.modelName()}:${tag}`;
-    this.pulling.set(true);
-    this.pullingTag.set(fullName);
-    this.pullStatus.set('Starting pull...');
-    this.pullPercent.set(0);
+    this.pullService.pull(`${this.modelName()}:${tag}`);
+  }
 
-    this.sse.pullModel(fullName).subscribe({
-      next: (data) => {
-        this.pullStatus.set(data.status || '');
-        if (data.total && data.completed) {
-          this.pullPercent.set((data.completed / data.total) * 100);
-        }
-      },
-      error: () => {
-        this.pulling.set(false);
-        this.snackbar.open('Pull failed', 'Close', { duration: 5000 });
-      },
-      complete: () => {
-        this.pulling.set(false);
-        this.api.getLocalModels().subscribe({
-          next: (r) => this.localModels.set(r.models),
-        });
-        this.snackbar.open('Pull complete!', 'Close', { duration: 3000 });
-      },
-    });
+  cancelPull() {
+    const name = this.pullingTag();
+    if (name) {
+      this.pullService.cancel(name);
+    }
   }
 }

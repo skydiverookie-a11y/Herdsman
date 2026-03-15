@@ -65,7 +65,7 @@ import { ApiService } from '../../core/services/api.service';
       <!-- Results -->
       <div class="card-grid">
         @for (result of results(); track result.name) {
-          <mat-card class="result-card" [routerLink]="'/model/' + result.name">
+          <mat-card class="result-card" [routerLink]="'/model/' + encodeName(result.name)">
             <mat-card-header>
               <mat-icon mat-card-avatar>smart_toy</mat-icon>
               <mat-card-title>{{ result.name }}</mat-card-title>
@@ -242,6 +242,10 @@ export class RegistrySearch implements OnInit {
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  encodeName(name: string): string {
+    return encodeURIComponent(name);
   }
 
   loadMore() {

@@ -35,4 +35,12 @@ class CacheService:
         await db.commit()
 
 
+    async def clear_all(self):
+        """Clear all cache tables."""
+        db = await get_db()
+        await db.execute("DELETE FROM search_cache")
+        await db.execute("DELETE FROM model_cache")
+        await db.commit()
+
+
 cache_service = CacheService()
