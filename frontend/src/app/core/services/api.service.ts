@@ -28,6 +28,14 @@ export class ApiService {
     return this.http.delete(`/api/models/${name}`);
   }
 
+  unloadModel(name: string): Observable<any> {
+    return this.http.post('/api/models/unload', { name });
+  }
+
+  generatePrompt(model: string, prompt: string): Observable<{ response: string }> {
+    return this.http.post<{ response: string }>('/api/models/generate', { model, prompt });
+  }
+
   // Pull Queue
   getPullQueue(): Observable<{ jobs: any[] }> {
     return this.http.get<{ jobs: any[] }>('/api/models/queue');

@@ -94,6 +94,35 @@ async def pull_queue_status(_: str = Depends(verify_token)):
     }
 
 
+@router.post("/models/unload")
+async def unload_model(request: dict, _: str = Depends(verify_token)):
+    name = request.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Model name required")
+    if not ollama_service.connected:
+        raise HTTPException(status_code=503, detail="Ollama is not connected")
+    try:
+        await ollama_service.unload_model(name)
+        return {"status": "unloaded", "model": name}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to unload: {e}")
+
+
+@router.post("/models/generate")
+async def generate(request: dict, _: str = Depends(verify_token)):
+    model = request.get("model")
+    prompt = request.get("prompt")
+    if not model or not prompt:
+        raise HTTPException(status_code=400, detail="Model and prompt required")
+    if not ollama_service.connected:
+        raise HTTPException(status_code=503, detail="Ollama is not connected")
+    try:
+        response = await ollama_service.generate(model, prompt)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Generation failed: {e}")
+
+
 @router.delete("/models/{name:path}")
 async def delete_model(name: str, _: str = Depends(verify_token)):
     if not ollama_service.connected:

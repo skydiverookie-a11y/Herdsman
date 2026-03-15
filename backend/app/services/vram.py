@@ -1,3 +1,5 @@
+import re
+
 from app.config import settings
 from app.services.ollama import ollama_service
 
@@ -54,3 +56,27 @@ def parse_quantization(quant_str: str) -> str:
         if key in upper:
             return key
     return "Q4_K_M"  # default fallback
+
+
+def estimate_vram_from_size(size_str: str) -> float | None:
+    """Estimate VRAM from a human-readable size string like '4.4 GB'.
+
+    For quantized models the file size closely matches the weight memory,
+    so VRAM ≈ file_size + overhead (KV cache, CUDA context).
+    """
+    match = re.match(r"([\d.]+)\s*(TB|GB|MB|KB)", size_str, re.IGNORECASE)
+    if not match:
+        return None
+    value = float(match.group(1))
+    unit = match.group(2).upper()
+    if unit == "TB":
+        gb = value * 1024
+    elif unit == "GB":
+        gb = value
+    elif unit == "MB":
+        gb = value / 1024
+    else:
+        return None
+    if gb < 0.1:
+        return None
+    return round(gb + OVERHEAD_GB, 1)

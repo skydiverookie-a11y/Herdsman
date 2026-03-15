@@ -49,6 +49,11 @@ import { ConfirmDialog } from './confirm-dialog';
               <td mat-cell *matCellDef="let m">{{ m.modified_at | date : 'short' }}</td>
             </ng-container>
 
+            <ng-container matColumnDef="vram">
+              <th mat-header-cell *matHeaderCellDef>Est. VRAM</th>
+              <td mat-cell *matCellDef="let m">{{ estimateVram(m.size) }}</td>
+            </ng-container>
+
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let m">
@@ -101,7 +106,7 @@ import { ConfirmDialog } from './confirm-dialog';
 })
 export class LocalModels implements OnInit {
   models = signal<any[]>([]);
-  columns = ['name', 'size', 'modified', 'actions'];
+  columns = ['name', 'size', 'vram', 'modified', 'actions'];
 
   constructor(
     private api: ApiService,
@@ -123,6 +128,12 @@ export class LocalModels implements OnInit {
     if (!bytes) return '—';
     const gb = bytes / (1024 * 1024 * 1024);
     return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  }
+
+  estimateVram(bytes: number): string {
+    if (!bytes) return '—';
+    const gb = bytes / (1024 * 1024 * 1024) + 1.0;
+    return `~${gb.toFixed(1)} GB`;
   }
 
   confirmDelete(model: any) {

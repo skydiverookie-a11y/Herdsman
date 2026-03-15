@@ -63,7 +63,12 @@ import { SseService } from '../../core/services/sse.service';
                     <span class="tag-hash">{{ tag.hash }}</span>
                   }
                   @if (tag.size) {
-                    <span class="tag-size">{{ tag.size }}</span>
+                    <span class="tag-size">
+                      {{ tag.size }}
+                      @if (tag.estimatedVram) {
+                        <span class="tag-vram" [class.fits]="tag.fits === true" [class.no-fit]="tag.fits === false">~{{ tag.estimatedVram }} GB VRAM</span>
+                      }
+                    </span>
                   }
                 </div>
                 @if (tag.installed) {
@@ -173,6 +178,19 @@ import { SseService } from '../../core/services/sse.service';
       color: rgba(255, 255, 255, 0.4);
     }
 
+    .tag-vram {
+      color: rgba(129, 140, 248, 0.7);
+      margin-left: 8px;
+
+      &.fits {
+        color: rgba(34, 197, 94, 0.85);
+      }
+
+      &.no-fit {
+        color: rgba(239, 68, 68, 0.85);
+      }
+    }
+
     .empty-text {
       color: rgba(255, 255, 255, 0.4);
       font-style: italic;
@@ -205,6 +223,7 @@ export class ModelDetails implements OnInit {
   modelInfo = signal<any>({});
   tags = signal<any[]>([]);
   localModels = signal<any[]>([]);
+  availableVram = signal<number | null>(null);
   pulling = signal(false);
   pullingTag = signal('');
   pullStatus = signal('');
@@ -235,30 +254,43 @@ export class ModelDetails implements OnInit {
       }
     }
 
-    const result: { primaryName: string; aliases: string[]; hash: string; size: string; installed: boolean }[] = [];
+    const available = this.availableVram();
+    const result: { primaryName: string; aliases: string[]; hash: string; size: string; estimatedVram: number | null; fits: boolean | null; installed: boolean }[] = [];
+
+    const fitsVram = (vram: number | null): boolean | null => {
+      if (vram == null || available == null) return null;
+      return vram <= available;
+    };
 
     // Process hash groups
     for (const [hash, group] of hashGroups) {
       const sorted = [...group].sort((a, b) => a.name.length - b.name.length);
       const primary = sorted[0];
       const aliases = sorted.slice(1).map((t) => t.name);
+      const estimatedVram = primary.estimated_vram ?? null;
 
       result.push({
         primaryName: primary.name,
         aliases,
         hash,
         size: primary.size || '',
+        estimatedVram,
+        fits: fitsVram(estimatedVram),
         installed: localDigests.has(hash),
       });
     }
 
     // Process tags without hash
     for (const tag of noHash) {
+      const estimatedVram = tag.estimated_vram ?? null;
+
       result.push({
         primaryName: tag.name,
         aliases: [],
         hash: '',
         size: tag.size || '',
+        estimatedVram,
+        fits: fitsVram(estimatedVram),
         installed: false,
       });
     }
@@ -290,6 +322,20 @@ export class ModelDetails implements OnInit {
     });
     this.api.getRegistryModelTags(name).subscribe({
       next: (data) => this.tags.set(data.tags || []),
+    });
+    this.api.getSettings().subscribe({
+      next: (s) => {
+        const total = s.total_vram_gb ?? 0;
+        if (total > 0) {
+          this.api.getRunningModels().subscribe({
+            next: (r) => {
+              const usedBytes = (r.models || []).reduce((sum: number, m: any) => sum + (m.size_vram || 0), 0);
+              const usedGb = usedBytes / (1024 ** 3);
+              this.availableVram.set(Math.max(0, total - usedGb));
+            },
+          });
+        }
+      },
     });
   }
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import verify_token
 from app.services.registry import registry_service
+from app.services.vram import estimate_vram_from_size
 
 router = APIRouter(prefix="/api/registry", tags=["registry"])
 
@@ -32,4 +33,6 @@ async def model_details(name: str, _: str = Depends(verify_token)):
 @router.get("/models/{name:path}/tags")
 async def model_tags(name: str, _: str = Depends(verify_token)):
     tags = await registry_service.get_model_tags(name)
+    for tag in tags:
+        tag["estimated_vram"] = estimate_vram_from_size(tag.get("size", ""))
     return {"tags": tags}

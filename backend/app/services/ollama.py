@@ -69,6 +69,24 @@ class OllamaService:
             resp.raise_for_status()
             return True
 
+    async def unload_model(self, name: str) -> bool:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/api/generate",
+                json={"model": name, "keep_alive": 0},
+            )
+            resp.raise_for_status()
+            return True
+
+    async def generate(self, model: str, prompt: str) -> str:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False},
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "")
+
     async def update_base_url(self, url: str):
         self.base_url = url
         await self.health_check()
