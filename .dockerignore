@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+
+# Claude / Serena
+.claude
+.serena
+
+# Node
+frontend/node_modules
+frontend/dist
+frontend/.angular
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+backend/data
+
+# Docker (dev)
+docker/Dockerfile.backend
+docker/Dockerfile.frontend
+docker/docker-compose.yml
+docker/compose.server.yaml
+
+# Docs
+docs
+*.md
+!README.md

@@ -1,23 +1,14 @@
-networks:
-  internal:
-    external: true
-
 services:
   herdsman:
     image: skydiverookie/herdsman:latest
     container_name: herdsman
-    networks:
-      - default
-      - internal
     ports:
-      - "127.0.0.1:4200:80"
+      - "4200:80"
     environment:
-      - HERDSMAN_OLLAMA_HOST=http://ollama:11434
+      - HERDSMAN_OLLAMA_HOST=http://host.docker.internal:11434
       - HERDSMAN_ADMIN_USER=admin
       - HERDSMAN_ADMIN_PASSWORD=admin
       - HERDSMAN_SECRET_KEY=change-me-in-production
-      - HERDSMAN_DB_PATH=/app/data/herdsman.db
-      - TZ=Europe/Berlin
     volumes:
       - herdsman-data:/app/data
     restart: unless-stopped

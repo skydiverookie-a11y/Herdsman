@@ -1,3 +1,7 @@
+# Claude / Serena
+.claude/
+.serena/
+
 # IDE
 .idea/
 *.iml
