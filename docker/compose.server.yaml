@@ -4,7 +4,9 @@ networks:
 
 services:
   herdsman:
-    image: skydiverookie/herdsman:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
     container_name: herdsman
     networks:
       - default
