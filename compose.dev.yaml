@@ -1,0 +1,28 @@
+networks:
+  internal:
+    external: true
+
+services:
+  herdsman:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dev-herdsman
+    networks:
+      - default
+      - internal
+    ports:
+      - "127.0.0.1:4201:80"
+    environment:
+      - HERDSMAN_OLLAMA_HOST=http://ollama:11434
+      - HERDSMAN_ADMIN_USER=admin
+      - HERDSMAN_ADMIN_PASSWORD=admin
+      - HERDSMAN_SECRET_KEY=dev-secret-key
+      - HERDSMAN_DB_PATH=/app/data/herdsman.db
+      - TZ=Europe/Berlin
+    volumes:
+      - dev-herdsman-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  dev-herdsman-data:

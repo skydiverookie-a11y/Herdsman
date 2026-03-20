@@ -1,21 +1,32 @@
 name: Deploy
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 concurrency:
-  group: deploy-herdsman
+  group: deploy-${{ github.ref_name }}-herdsman
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: [self-hosted, homeserver]
     steps:
+      - name: Set paths
+        id: paths
+        run: |
+          if [ "${{ github.ref_name }}" = "dev" ]; then
+            echo "dir=/home/carsten/docker/stacks/dev-herdsman" >> $GITHUB_OUTPUT
+            echo "compose=compose.dev.yaml" >> $GITHUB_OUTPUT
+          else
+            echo "dir=/home/carsten/docker/stacks/herdsman" >> $GITHUB_OUTPUT
+            echo "compose=compose.yaml" >> $GITHUB_OUTPUT
+          fi
+
       - name: Pull latest code
-        run: cd /home/carsten/docker/stacks/herdsman && git pull
+        run: cd ${{ steps.paths.outputs.dir }} && git pull
 
       - name: Build and deploy
         run: |
-          cd /home/carsten/docker/stacks/herdsman
-          docker compose build
-          docker compose up -d
+          cd ${{ steps.paths.outputs.dir }}
+          docker compose -f ${{ steps.paths.outputs.compose }} build
+          docker compose -f ${{ steps.paths.outputs.compose }} up -d
