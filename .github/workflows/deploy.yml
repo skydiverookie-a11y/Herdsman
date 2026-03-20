@@ -17,5 +17,5 @@ jobs:
       - name: Build and deploy
         run: |
           cd /home/carsten/docker/stacks/herdsman
-          docker compose -f docker/compose.server.yaml build
-          docker compose -f docker/compose.server.yaml up -d
+          docker compose build
+          docker compose up -d

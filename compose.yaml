@@ -5,7 +5,7 @@ networks:
 services:
   herdsman:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile
     container_name: herdsman
     networks:
