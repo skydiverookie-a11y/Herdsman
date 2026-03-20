@@ -1,0 +1,21 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-herdsman
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, homeserver]
+    steps:
+      - name: Pull latest code
+        run: cd /home/carsten/docker/stacks/herdsman && git pull
+
+      - name: Build and deploy
+        run: |
+          cd /home/carsten/docker/stacks/herdsman
+          docker compose -f docker/compose.server.yaml build
+          docker compose -f docker/compose.server.yaml up -d
